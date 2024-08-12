@@ -11,11 +11,6 @@ include_directories(
 ##################### Linking #################
 
 # Prepare "Catch" library for other executables
-find_package(Catch2 3 REQUIRED)
-
-#set( CATCH_INCLUDE_DIR   ${CMAKE_CURRENT_SOURCE_DIR}/../external/Catch2/single_include )
-#add_library ( Catch INTERFACE )
-#target_include_directories( Catch INTERFACE ${CATCH_INCLUDE_DIR} )
 
 set ( LINK_LIBS
     glfw ${GLFW_LIBRARIES}

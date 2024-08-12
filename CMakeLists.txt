@@ -4,6 +4,8 @@ set( CMAKE_INSTALL_MESSAGE LAZY )   # Skips update to date messages
 
 project ( "FlingEngine" VERSION 1.0 )
 
+add_subdirectory(external)
+
 # Generated folder used for Cmake generated files
 set( GENERATED_INC_FOLDER ${CMAKE_BINARY_DIR}/Generated )
 message( STATUS "Generated dir: ${GENERATED_INC_FOLDER}" )
@@ -118,15 +120,6 @@ if( WITH_IMGUI_FLAG )
     include_directories( external/imgui )
     include_directories( external/imgui_entt_entity_editor )
 endif()
-
-include_directories( external/glm )
-include_directories( external/spdlog/include )
-include_directories( external/inih )
-include_directories( external/entt/src )
-include_directories( external/json/single_include )
-include_directories( external/stb )
-include_directories( external/tinyobjloader )
-include_directories( external/cereal/include )
 
 # Add the engine and tests
 add_subdirectory ( "FlingEngine" )

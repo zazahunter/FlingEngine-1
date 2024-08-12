@@ -24,3 +24,4 @@ git submodule update --init --recursive
 :: Run cmake to generate the local x64 files in the build folder
 ::cd "../.."
 cmake . -A x64 -B build
+pause
