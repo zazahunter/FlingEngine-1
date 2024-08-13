@@ -76,13 +76,8 @@ set ( LINK_LIBS
     spdlog
     imgui
     imgui_entt_entity_editor
+    Inih
 )
-
-IF( WITH_IMGUI_FLAG )
-set ( LINK_LIBS ${LINK_LIBS}
-    ImGui ${IMGUI_LIBRARIES}
-)
-endif()
 
 # link pthread if we need to
 if ( NOT WIN32 )
