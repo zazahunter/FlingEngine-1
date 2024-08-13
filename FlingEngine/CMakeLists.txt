@@ -79,6 +79,7 @@ set ( LINK_LIBS
     Inih
     nlohmann_json
     tinyobjloader
+    stb_image
 )
 
 # link pthread if we need to
