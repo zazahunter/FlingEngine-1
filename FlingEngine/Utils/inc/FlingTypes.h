@@ -7,6 +7,8 @@
 #include <entt/core/hashed_string.hpp>
 #include <entt/entity/helper.hpp>
 
+using namespace entt::literals;
+
 // Integer typedefs for ease of use
 typedef uint8_t                 uint8;
 typedef unsigned short          uint16;
