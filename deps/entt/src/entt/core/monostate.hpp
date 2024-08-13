@@ -1,13 +1,10 @@
 #ifndef ENTT_CORE_MONOSTATE_HPP
 #define ENTT_CORE_MONOSTATE_HPP
 
-
-#include <cassert>
 #include "../config/config.h"
-
+#include "fwd.hpp"
 
 namespace entt {
-
 
 /**
  * @brief Minimal implementation of the monostate pattern.
@@ -20,16 +17,18 @@ namespace entt {
  * both during an assignment and when they try to read back their data.
  * Otherwise, they can incur in unexpected results.
  */
-template<ENTT_ID_TYPE>
+template<id_type>
 struct monostate {
     /**
      * @brief Assigns a value of a specific type to a given key.
      * @tparam Type Type of the value to assign.
      * @param val User data to assign to the given key.
+     * @return This monostate object.
      */
     template<typename Type>
-    void operator=(Type val) const ENTT_NOEXCEPT {
+    monostate &operator=(Type val) noexcept {
         value<Type> = val;
+        return *this;
     }
 
     /**
@@ -38,25 +37,24 @@ struct monostate {
      * @return Stored value, if any.
      */
     template<typename Type>
-    operator Type() const ENTT_NOEXCEPT {
+    operator Type() const noexcept {
         return value<Type>;
     }
 
 private:
     template<typename Type>
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
     inline static ENTT_MAYBE_ATOMIC(Type) value{};
 };
-
 
 /**
  * @brief Helper variable template.
  * @tparam Value Value used to differentiate between different variables.
  */
-template<ENTT_ID_TYPE Value>
-inline monostate<Value> monostate_v = {};
+template<id_type Value>
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+inline monostate<Value> monostate_v{};
 
+} // namespace entt
 
-}
-
-
-#endif // ENTT_CORE_MONOSTATE_HPP
+#endif

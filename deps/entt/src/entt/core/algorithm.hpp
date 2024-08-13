@@ -1,16 +1,14 @@
 #ifndef ENTT_CORE_ALGORITHM_HPP
 #define ENTT_CORE_ALGORITHM_HPP
 
-
-#include <utility>
-#include <iterator>
 #include <algorithm>
 #include <functional>
+#include <iterator>
+#include <utility>
+#include <vector>
 #include "utility.hpp"
 
-
 namespace entt {
-
 
 /**
  * @brief Function object to wrap `std::sort` in a class type.
@@ -35,11 +33,10 @@ struct std_sort {
      * @param args Arguments to forward to the sort function, if any.
      */
     template<typename It, typename Compare = std::less<>, typename... Args>
-    void operator()(It first, It last, Compare compare = Compare{}, Args &&... args) const {
+    void operator()(It first, It last, Compare compare = Compare{}, Args &&...args) const {
         std::sort(std::forward<Args>(args)..., std::move(first), std::move(last), std::move(compare));
     }
 };
-
 
 /*! @brief Function object for performing insertion sort. */
 struct insertion_sort {
@@ -57,20 +54,21 @@ struct insertion_sort {
     template<typename It, typename Compare = std::less<>>
     void operator()(It first, It last, Compare compare = Compare{}) const {
         if(first < last) {
-            for(auto it = first+1; it < last; ++it) {
+            for(auto it = first + 1; it < last; ++it) {
                 auto value = std::move(*it);
                 auto pre = it;
 
-                for(; pre > first && compare(value, *(pre-1)); --pre) {
-                    *pre = std::move(*(pre-1));
+                // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+                for(; pre > first && compare(value, *(pre - 1)); --pre) {
+                    *pre = std::move(*(pre - 1));
                 }
+                // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 
                 *pre = std::move(value);
             }
         }
     }
 };
-
 
 /**
  * @brief Function object for performing LSD radix sort.
@@ -79,7 +77,7 @@ struct insertion_sort {
  */
 template<std::size_t Bit, std::size_t N>
 struct radix_sort {
-    static_assert((N % Bit) == 0);
+    static_assert((N % Bit) == 0, "The maximum number of bits to sort must be a multiple of the number of bits processed per pass");
 
     /**
      * @brief Sorts the elements in a range.
@@ -99,28 +97,32 @@ struct radix_sort {
     template<typename It, typename Getter = identity>
     void operator()(It first, It last, Getter getter = Getter{}) const {
         if(first < last) {
-            static constexpr auto mask = (1 << Bit) - 1;
-            static constexpr auto buckets = 1 << Bit;
-            static constexpr auto passes = N / Bit;
+            constexpr auto passes = N / Bit;
 
             using value_type = typename std::iterator_traits<It>::value_type;
             std::vector<value_type> aux(std::distance(first, last));
 
             auto part = [getter = std::move(getter)](auto from, auto to, auto out, auto start) {
-                std::size_t index[buckets]{};
+                constexpr auto mask = (1 << Bit) - 1;
+                constexpr auto buckets = 1 << Bit;
+
+                // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
                 std::size_t count[buckets]{};
 
-                std::for_each(from, to, [&getter, &count, start](const value_type &item) {
-                    ++count[(getter(item) >> start) & mask];
-                });
+                for(auto it = from; it != to; ++it) {
+                    ++count[(getter(*it) >> start) & mask];
+                }
 
-                std::for_each(std::next(std::begin(index)), std::end(index), [index = std::begin(index), count = std::begin(count)](auto &item) mutable {
-                    item = *(index++) + *(count++);
-                });
+                // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+                std::size_t index[buckets]{};
 
-                std::for_each(from, to, [&getter, &out, &index, start](value_type &item) {
-                    out[index[(getter(item) >> start) & mask]++] = std::move(item);
-                });
+                for(std::size_t pos{}, end = buckets - 1u; pos < end; ++pos) {
+                    index[pos + 1u] = index[pos] + count[pos];
+                }
+
+                for(auto it = from; it != to; ++it) {
+                    out[index[(getter(*it) >> start) & mask]++] = std::move(*it);
+                }
             };
 
             for(std::size_t pass = 0; pass < (passes & ~1); pass += 2) {
@@ -136,8 +138,6 @@ struct radix_sort {
     }
 };
 
+} // namespace entt
 
-}
-
-
-#endif // ENTT_CORE_ALGORITHM_HPP
+#endif

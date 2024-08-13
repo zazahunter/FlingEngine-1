@@ -1,226 +1,334 @@
-#
 # EnTT
-#
 
-cmake_minimum_required(VERSION 3.7.2)
+cmake_minimum_required(VERSION 3.15.7)
 
-#
-# Building in-tree is not allowed (we take care of your craziness).
-#
+# Read project version
 
-if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
-    message(FATAL_ERROR "Prevented in-tree built. Please create a build directory outside of the source code and call cmake from there. Thank you.")
-endif()
+set(ENTT_VERSION_REGEX "#define ENTT_VERSION_.*[ \t]+(.+)")
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/entt/config/version.h" ENTT_VERSION REGEX ${ENTT_VERSION_REGEX})
+list(TRANSFORM ENTT_VERSION REPLACE ${ENTT_VERSION_REGEX} "\\1")
+string(JOIN "." ENTT_VERSION ${ENTT_VERSION})
 
-#
 # Project configuration
-#
 
-project(EnTT VERSION 3.1.0)
-
-include(GNUInstallDirs)
+project(
+    EnTT
+    VERSION ${ENTT_VERSION}
+    DESCRIPTION "Gaming meets modern C++ - a fast and reliable entity-component system (ECS) and much more"
+    HOMEPAGE_URL "https://github.com/skypjack/entt"
+    LANGUAGES C CXX
+)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-set(SETTINGS_ORGANIZATION "Michele Caini")
-set(SETTINGS_APPLICATION ${PROJECT_NAME})
-set(PROJECT_AUTHOR "Michele Caini")
-set(PROJECT_AUTHOR_EMAIL "michele.caini@gmail.com")
+message(VERBOSE "*")
+message(VERBOSE "* ${PROJECT_NAME} v${PROJECT_VERSION} (${CMAKE_BUILD_TYPE})")
+message(VERBOSE "* Copyright (c) 2017-2024 Michele Caini <michele.caini@gmail.com>")
+message(VERBOSE "*")
 
-message("*")
-message("* ${PROJECT_NAME} v${PROJECT_VERSION} (${CMAKE_BUILD_TYPE})")
-message("* Copyright (c) 2017-2019 ${PROJECT_AUTHOR} <${PROJECT_AUTHOR_EMAIL}>")
-message("*")
+# CMake stuff
 
-option(USE_LIBCPP "Use libc++ by adding -stdlib=libc++ flag if availbale." ON)
-option(USE_ASAN "Use address sanitizer by adding -fsanitize=address -fno-omit-frame-pointer flags" OFF)
-option(USE_COMPILE_OPTIONS "Use compile options from EnTT." ON)
+list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
 
-#
 # Compiler stuff
-#
 
-if(NOT MSVC AND USE_LIBCPP)
-    include(CheckCXXSourceCompiles)
-    include(CMakePushCheckState)
+option(ENTT_USE_LIBCPP "Use libc++ by adding -stdlib=libc++ flag if available." OFF)
+option(ENTT_USE_SANITIZER "Enable sanitizers by adding -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined flags if available." OFF)
+option(ENTT_USE_CLANG_TIDY "Enable static analysis with clang-tidy" OFF)
 
-    cmake_push_check_state()
+if(ENTT_USE_LIBCPP)
+    if(NOT WIN32)
+        include(CheckCXXSourceCompiles)
+        include(CMakePushCheckState)
 
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -stdlib=libc++")
+        cmake_push_check_state()
 
-    check_cxx_source_compiles("
-        #include<type_traits>
-        int main() { return std::is_same_v<int, int> ? 0 : 1; }
-    " HAS_LIBCPP)
+        set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -stdlib=libc++")
 
-    if(NOT HAS_LIBCPP)
-        message(WARNING "The option USE_LIBCPP is set (by default) but libc++ is not available. The flag will not be added to the target.")
+        check_cxx_source_compiles("
+            #include<type_traits>
+            int main() { return std::is_same_v<int, char>; }
+        " ENTT_HAS_LIBCPP)
+
+        cmake_pop_check_state()
     endif()
 
-    cmake_pop_check_state()
+    if(NOT ENTT_HAS_LIBCPP)
+        message(VERBOSE "The option ENTT_USE_LIBCPP is set but libc++ is not available.")
+    endif()
 endif()
 
-#
+if(ENTT_USE_SANITIZER)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        set(ENTT_HAS_SANITIZER TRUE CACHE BOOL "" FORCE)
+        mark_as_advanced(ENTT_HAS_SANITIZER)
+    endif()
+
+    if(NOT ENTT_HAS_SANITIZER)
+        message(VERBOSE "The option ENTT_USE_SANITIZER is set but sanitizer support is not available.")
+    endif()
+endif()
+
+if(ENTT_USE_CLANG_TIDY)
+    find_program(ENTT_CLANG_TIDY_EXECUTABLE "clang-tidy")
+
+    if(NOT ENTT_CLANG_TIDY_EXECUTABLE)
+        message(VERBOSE "The option ENTT_USE_CLANG_TIDY is set but clang-tidy executable is not available.")
+    endif()
+endif()
+
 # Add EnTT target
-#
+
+option(ENTT_INCLUDE_HEADERS "Add all EnTT headers to the EnTT target." OFF)
+option(ENTT_INCLUDE_NATVIS "Add EnTT natvis files to the EnTT target." OFF)
+
+if(ENTT_INCLUDE_NATVIS)
+    if(MSVC)
+        set(ENTT_HAS_NATVIS TRUE CACHE BOOL "" FORCE)
+        mark_as_advanced(ENTT_HAS_NATVIS)
+    endif()
+
+    if(NOT ENTT_HAS_NATVIS)
+        message(VERBOSE "The option ENTT_INCLUDE_NATVIS is set but natvis files are not supported. They will not be added to the target.")
+    endif()
+endif()
+
+include(GNUInstallDirs)
 
 add_library(EnTT INTERFACE)
-
-configure_file(${EnTT_SOURCE_DIR}/cmake/in/version.h.in ${EnTT_SOURCE_DIR}/src/entt/config/version.h @ONLY)
+add_library(EnTT::EnTT ALIAS EnTT)
 
 target_include_directories(
-    EnTT INTERFACE
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
-
-target_compile_definitions(
     EnTT
-    INTERFACE $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:DEBUG>
-    INTERFACE $<$<AND:$<CONFIG:Release>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:RELEASE>
+    INTERFACE
+        $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-
-if(USE_ASAN)
-    target_compile_options(EnTT INTERFACE $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-fsanitize=address -fno-omit-frame-pointer>)
-    target_link_libraries(EnTT INTERFACE $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-fsanitize=address -fno-omit-frame-pointer>)
-endif()
-
-if(USE_COMPILE_OPTIONS)
-    target_compile_options(
-        EnTT
-        INTERFACE $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-O0 -g>
-        # it seems that -O3 ruins a bit the performance when using clang ...
-        INTERFACE $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:Clang>>:-O2>
-        # ... on the other side, GCC is incredibly comfortable with it.
-        INTERFACE $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:GNU>>:-O3>
-    )
-endif()
-
-if(HAS_LIBCPP)
-    target_compile_options(EnTT BEFORE INTERFACE -stdlib=libc++)
-endif()
 
 target_compile_features(EnTT INTERFACE cxx_std_17)
 
-#
-# Install EnTT
-#
-
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    set(CUSTOM_INSTALL_CONFIGDIR cmake)
-else()
-    set(CUSTOM_INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/cmake/entt)
+if(ENTT_INCLUDE_HEADERS)
+    target_sources(
+        EnTT
+        INTERFACE
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/config/config.h>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/config/macro.h>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/config/version.h>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/container/dense_map.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/container/dense_set.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/container/table.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/container/fwd.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/algorithm.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/any.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/attribute.h>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/bit.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/compressed_pair.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/enum.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/family.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/fwd.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/hashed_string.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/ident.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/iterator.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/memory.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/monostate.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/ranges.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/tuple.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/type_info.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/type_traits.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/core/utility.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/component.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/entity.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/fwd.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/group.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/handle.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/mixin.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/helper.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/observer.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/organizer.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/ranges.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/registry.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/runtime_view.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/snapshot.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/sparse_set.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/storage.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entity/view.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/graph/adjacency_matrix.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/graph/dot.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/graph/flow.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/graph/fwd.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/locator/locator.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/adl_pointer.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/container.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/context.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/factory.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/fwd.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/meta.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/node.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/pointer.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/policy.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/range.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/resolve.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/template.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/type_traits.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/meta/utility.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/poly/fwd.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/poly/poly.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/process/fwd.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/process/process.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/process/scheduler.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/resource/cache.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/resource/fwd.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/resource/loader.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/resource/resource.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/signal/delegate.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/signal/dispatcher.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/signal/emitter.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/signal/fwd.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/signal/sigh.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/entt.hpp>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/src/entt/fwd.hpp>
+    )
 endif()
 
-install(DIRECTORY src/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(TARGETS EnTT EXPORT EnTTTargets)
+if(ENTT_HAS_NATVIS)
+    target_sources(
+        EnTT
+        INTERFACE
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/config.natvis>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/container.natvis>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/core.natvis>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/entity.natvis>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/graph.natvis>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/locator.natvis>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/meta.natvis>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/poly.natvis>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/process.natvis>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/resource.natvis>
+            $<BUILD_INTERFACE:${EnTT_SOURCE_DIR}/natvis/entt/signal.natvis>
+    )
+endif()
 
-export(EXPORT EnTTTargets FILE ${EnTT_BINARY_DIR}/EnTTTargets.cmake)
+if(ENTT_HAS_SANITIZER)
+    target_compile_options(EnTT INTERFACE $<$<CONFIG:Debug>:-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined>)
+    target_link_libraries(EnTT INTERFACE $<$<CONFIG:Debug>:-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined>)
+endif()
 
-install(
-    EXPORT EnTTTargets
-    FILE EnTTTargets.cmake
-    DESTINATION ${CUSTOM_INSTALL_CONFIGDIR}
+if(ENTT_CLANG_TIDY_EXECUTABLE)
+    set(CMAKE_CXX_CLANG_TIDY "${ENTT_CLANG_TIDY_EXECUTABLE};--config-file=${EnTT_SOURCE_DIR}/.clang-tidy;--header-filter=${EnTT_SOURCE_DIR}/src/entt/.*")
+endif()
+
+if(ENTT_HAS_LIBCPP)
+    target_compile_options(EnTT BEFORE INTERFACE -stdlib=libc++)
+endif()
+
+# Install pkg-config file
+
+include(JoinPaths)
+
+set(EnTT_PKGCONFIG ${CMAKE_CURRENT_BINARY_DIR}/entt.pc)
+
+join_paths(EnTT_PKGCONFIG_INCLUDEDIR "\${prefix}" "${CMAKE_INSTALL_INCLUDEDIR}")
+
+configure_file(
+    ${EnTT_SOURCE_DIR}/cmake/in/entt.pc.in
+    ${EnTT_PKGCONFIG}
+    @ONLY
 )
 
-#
-# Build tree package config file
-#
+install(
+    FILES ${EnTT_PKGCONFIG}
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+)
 
-configure_file(cmake/in/EnTTBuildConfig.cmake.in EnTTConfig.cmake @ONLY)
+# Install EnTT
 
 include(CMakePackageConfigHelpers)
 
-#
-# Install tree package config file
-#
-
-configure_package_config_file(
-    cmake/in/EnTTConfig.cmake.in
-    ${CUSTOM_INSTALL_CONFIGDIR}/EnTTConfig.cmake
-    INSTALL_DESTINATION ${CUSTOM_INSTALL_CONFIGDIR}
-    PATH_VARS CMAKE_INSTALL_INCLUDEDIR
+install(
+    TARGETS EnTT
+    EXPORT EnTTTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 write_basic_package_version_file(
-    ${EnTT_BINARY_DIR}/EnTTConfigVersion.cmake
+    EnTTConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY AnyNewerVersion
 )
 
+configure_package_config_file(
+    ${EnTT_SOURCE_DIR}/cmake/in/EnTTConfig.cmake.in
+    EnTTConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/EnTT/cmake
+)
+
+export(
+    EXPORT EnTTTargets
+    FILE ${CMAKE_CURRENT_BINARY_DIR}/EnTTTargets.cmake
+    NAMESPACE EnTT::
+)
+
+install(
+    EXPORT EnTTTargets
+    FILE EnTTTargets.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/EnTT/cmake
+    NAMESPACE EnTT::
+)
+
 install(
     FILES
-        ${EnTT_BINARY_DIR}/${CUSTOM_INSTALL_CONFIGDIR}/EnTTConfig.cmake
-        ${EnTT_BINARY_DIR}/EnTTConfigVersion.cmake
-    DESTINATION ${CUSTOM_INSTALL_CONFIGDIR}
+        ${PROJECT_BINARY_DIR}/EnTTConfig.cmake
+        ${PROJECT_BINARY_DIR}/EnTTConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/EnTT/cmake
+)
+
+install(
+    DIRECTORY src/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*.hpp"
 )
 
 export(PACKAGE EnTT)
 
-#
 # Tests
-#
 
-option(BUILD_TESTING "Enable testing with ctest." OFF)
+option(ENTT_BUILD_TESTING "Enable building tests." OFF)
 
-if(BUILD_TESTING)
-    set(THREADS_PREFER_PTHREAD_FLAG ON)
-    find_package(Threads REQUIRED)
+if(ENTT_BUILD_TESTING)
+    option(ENTT_FIND_GTEST_PACKAGE "Enable finding gtest package." OFF)
+    option(ENTT_BUILD_BENCHMARK "Build benchmark." OFF)
+    option(ENTT_BUILD_EXAMPLE "Build examples." OFF)
+    option(ENTT_BUILD_LIB "Build lib tests." OFF)
+    option(ENTT_BUILD_SNAPSHOT "Build snapshot test with Cereal." OFF)
 
-    option(FIND_GTEST_PACKAGE "Enable finding gtest package." OFF)
+    set(ENTT_ID_TYPE std::uint32_t CACHE STRING "Type of identifiers to use for the tests")
+    set(ENTT_CXX_STD cxx_std_17 CACHE STRING "C++ standard revision to use for the tests")
 
-    if(FIND_GTEST_PACKAGE)
-        find_package(GTest REQUIRED)
-    else()
-        # gtest, gtest_main, gmock and gmock_main targets are available from now on
-        set(GOOGLETEST_DEPS_DIR ${EnTT_SOURCE_DIR}/deps/googletest)
-        configure_file(${EnTT_SOURCE_DIR}/cmake/in/googletest.in ${GOOGLETEST_DEPS_DIR}/CMakeLists.txt)
-        execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY ${GOOGLETEST_DEPS_DIR})
-        execute_process(COMMAND ${CMAKE_COMMAND} --build . WORKING_DIRECTORY ${GOOGLETEST_DEPS_DIR})
-        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-        add_subdirectory(${GOOGLETEST_DEPS_DIR}/src ${GOOGLETEST_DEPS_DIR}/build)
-        target_compile_features(gmock_main PRIVATE $<TARGET_PROPERTY:EnTT,INTERFACE_COMPILE_FEATURES>)
-        target_compile_features(gmock PRIVATE $<TARGET_PROPERTY:EnTT,INTERFACE_COMPILE_FEATURES>)
-        add_library(GTest::Main ALIAS gtest_main)
-    endif()
-
-    option(BUILD_BENCHMARK "Build benchmark." OFF)
-    option(BUILD_LIB "Build lib example." OFF)
-    option(BUILD_MOD "Build mod example." OFF)
-    option(BUILD_SNAPSHOT "Build snapshot example." OFF)
-
+    include(CTest)
     enable_testing()
     add_subdirectory(test)
 endif()
 
-#
+# Tools
+
+option(ENTT_BUILD_TOOLS "Enable building tools." OFF)
+
+if(ENTT_BUILD_TOOLS)
+    add_subdirectory(tools)
+endif()
+
 # Documentation
-#
 
-option(BUILD_DOCS "Enable building with documentation." OFF)
+option(ENTT_BUILD_DOCS "Enable building with documentation." OFF)
 
-if(BUILD_DOCS)
-    find_package(Doxygen 1.8)
+if(ENTT_BUILD_DOCS)
+    find_package(Doxygen 1.10)
 
     if(DOXYGEN_FOUND)
         add_subdirectory(docs)
     endif()
 endif()
-
-#
-# AOB
-#
-
-add_custom_target(
-    entt_aob
-    SOURCES
-        appveyor.yml
-        AUTHORS
-        CONTRIBUTING.md
-        LICENSE
-        README.md
-        TODO
-        .travis.yml
-)

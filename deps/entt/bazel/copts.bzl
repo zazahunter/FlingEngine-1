@@ -1,10 +1,13 @@
-_msvc_copts = ["/std:c++17"]
-_gcc_copts = ["-std=c++17"]
+load("@bazel_skylib//lib:selects.bzl", "selects")
 
-entt_copts = select({
-    # Windows
-    "@bazel_tools//src/conditions:windows": _msvc_copts,
-    "@bazel_tools//src/conditions:windows_msvc": _msvc_copts,
-    "@bazel_tools//src/conditions:windows_msys": _msvc_copts,
-    "//conditions:default": _gcc_copts,
+COPTS = selects.with_or({
+    ("//conditions:default", "@rules_cc//cc/compiler:clang", "@rules_cc//cc/compiler:gcc", "@rules_cc//cc/compiler:mingw-gcc"): [
+        "-std=c++17",
+        "-w",
+    ],
+    ("@rules_cc//cc/compiler:msvc-cl", "@rules_cc//cc/compiler:clang-cl"): [
+        "/std:c++17",
+        "/permissive-",
+        "/w",
+    ],
 })

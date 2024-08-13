@@ -1,6 +1,9 @@
+option(BUILD_TESTING "Enable testing" OFF)
+set(BUILD_TESTING OFF FORCE)
+
 add_subdirectory(Catch2)
-add_subdirectory(cereal/include)
-add_subdirectory(entt/src)
+add_subdirectory(cereal)
+add_subdirectory(entt)
 add_subdirectory(glfw)
 add_subdirectory(glm)
 add_subdirectory(imgui)

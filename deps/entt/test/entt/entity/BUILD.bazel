@@ -1,121 +1,35 @@
-load("//bazel:copts.bzl", "entt_copts")
+load("@entt//bazel:copts.bzl", "COPTS")
+load("@rules_cc//cc:defs.bzl", "cc_test")
 
-cc_test(
-    name = "actor",
-    copts = entt_copts,
-    srcs = ["actor.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
+# buildifier: keep sorted
+_TESTS = [
+    "component",
+    "entity",
+    "group",
+    "handle",
+    "helper",
+    "observer",
+    "organizer",
+    "registry",
+    "runtime_view",
+    "sigh_mixin",
+    "snapshot",
+    "sparse_set",
+    "storage",
+    "storage_entity",
+    "storage_no_instance",
+    "storage_utility",
+    "view",
+]
 
-cc_test(
-    name = "entity",
-    copts = entt_copts,
-    srcs = ["entity.cpp"],
+[cc_test(
+    name = test,
+    srcs = ["{}.cpp".format(test)],
+    copts = COPTS,
     deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",
+        "//common",
+        "@entt",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
-)
-
-cc_test(
-    name = "group",
-    copts = entt_copts,
-    srcs = ["group.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "helper",
-    copts = entt_copts,
-    srcs = ["helper.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "observer",
-    copts = entt_copts,
-    srcs = ["observer.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",  
-    ],
-)
-
-cc_test(
-    name = "prototype",
-    copts = entt_copts,
-    srcs = ["prototype.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "registry",
-    copts = entt_copts,
-    srcs = ["registry.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "runtime_view",
-    copts = entt_copts,
-    srcs = ["runtime_view.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "snapshot",
-    copts = entt_copts,
-    srcs = ["snapshot.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",  
-    ],
-)
-
-cc_test(
-    name = "sparse_set",
-    copts = entt_copts,
-    srcs = ["sparse_set.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "storage",
-    copts = entt_copts,
-    srcs = ["storage.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "view",
-    copts = entt_copts,
-    srcs = ["view.cpp"],
-    deps = [
-        "//:entt",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
+) for test in _TESTS]
