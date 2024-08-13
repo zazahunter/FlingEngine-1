@@ -72,6 +72,10 @@ set ( LINK_LIBS
     spirv-cross-core 
     spirv-cross-cpp
     spirv-cross-reflect
+    EnTT
+    spdlog
+    imgui
+    imgui_entt_entity_editor
 )
 
 IF( WITH_IMGUI_FLAG )
@@ -139,4 +143,4 @@ add_library ( ${PROJECT_NAME} ${_source_list} )
 target_include_directories (${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${SPIRV_CROSS_INCLUDE_DIR})
 
 # link against the libs that the engine needs
-target_link_libraries( ${PROJECT_NAME} LINK_PUBLIC ${LINK_LIBS} )
+target_link_libraries( ${PROJECT_NAME} LINK_PUBLIC ${LINK_LIBS})
