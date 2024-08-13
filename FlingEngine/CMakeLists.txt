@@ -77,6 +77,8 @@ set ( LINK_LIBS
     imgui
     imgui_entt_entity_editor
     Inih
+    nlohmann_json
+    tinyobjloader
 )
 
 # link pthread if we need to
