@@ -2,9 +2,9 @@ cmake_minimum_required ( VERSION 3.11.0 )
 set( CMAKE_SUPPRESS_REGENERATION true )
 set( CMAKE_INSTALL_MESSAGE LAZY )   # Skips update to date messages
 
-project ( "FlingEngine" VERSION 1.0 )
+project ("FlingEngine")
 
-add_subdirectory(external)
+add_subdirectory(deps)
 
 # Generated folder used for Cmake generated files
 set( GENERATED_INC_FOLDER ${CMAKE_BINARY_DIR}/Generated )
@@ -92,10 +92,6 @@ endif()
 # This is needed for Clang support of glm::hash
 ADD_DEFINITIONS( -DGLM_FORCE_CXX17 )
 
-# Include external libraries
-add_subdirectory( external/glfw )
-include_directories( external/glfw/include )
-
 # SPIRV-Cross
 add_definitions( -DSPIRV_CROSS_SHARED=OFF )
 add_definitions( -DSPIRV_CROSS_STATIC=OFF )
@@ -105,7 +101,6 @@ set(SPIRV_CROSS_CLI OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_ENABLE_MSL OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_ENABLE_HLSL OFF CACHE BOOL "" FORCE)
 
-add_subdirectory( external/SPIRV-Cross )
 # Make the folders look pretty in Visual Studio
 set_target_properties(spirv-cross-c PROPERTIES FOLDER SPIRV-Cross)
 set_target_properties(spirv-cross-core PROPERTIES FOLDER SPIRV-Cross)
@@ -113,13 +108,6 @@ set_target_properties(spirv-cross-cpp PROPERTIES FOLDER SPIRV-Cross)
 set_target_properties(spirv-cross-glsl PROPERTIES FOLDER SPIRV-Cross)
 set_target_properties(spirv-cross-reflect PROPERTIES FOLDER SPIRV-Cross)
 set_target_properties(spirv-cross-util PROPERTIES FOLDER SPIRV-Cross)
-
-# ImGUI 
-if( WITH_IMGUI_FLAG )
-    add_subdirectory( external/imgui )
-    include_directories( external/imgui )
-    include_directories( external/imgui_entt_entity_editor )
-endif()
 
 # Add the engine and tests
 add_subdirectory ( "FlingEngine" )
